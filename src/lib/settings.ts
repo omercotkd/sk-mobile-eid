@@ -1,0 +1,13 @@
+const ID_NUMBER = '51307149560';
+const PHONE_NUMBER = '+37269930366';
+const MID_URL = 'https://tsp.demo.sk.ee/mid-api/';
+const RELYING_PARTY_UUID = '00000000-0000-0000-0000-000000000000';
+const RELYING_PARTY_NAME = 'DEMO';
+
+export default {
+  ID_NUMBER,
+  PHONE_NUMBER,
+  MID_URL,
+  RELYING_PARTY_UUID,
+  RELYING_PARTY_NAME,
+};
