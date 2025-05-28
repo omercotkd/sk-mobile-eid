@@ -1,15 +1,16 @@
 import { MidHashTypes } from './midHashTypes';
-import crypto, {
+import {
   randomBytes,
   verify,
   constants,
   createVerify,
   KeyObject,
 } from 'crypto';
-import asn1 from 'asn1.js';
+import * as crypto from 'crypto';
 
 export class RandomHash {
   public readonly value: Uint8Array;
+  randomValue?: string;
   constructor(
     public readonly hashType: MidHashTypes,
     value?: Uint8Array | null,
@@ -17,9 +18,17 @@ export class RandomHash {
     if (value) {
       this.value = value;
     } else {
-      this.value = new Uint8Array(
-        randomBytes(MidHashTypes.getLengthInBytes(hashType)),
-      );
+      // crerate a random value and hash it with sha256, sha384 or sha512
+      const randomValue = crypto
+        .randomBytes(MidHashTypes.getLengthInBytes(hashType))
+        .toString('hex');
+      const hash = crypto.createHash(MidHashTypes.getHashTypeName(hashType));
+      hash.update(randomValue);
+      this.value = new Uint8Array(hash.digest());
+      this.randomValue = randomValue;
+      // this.value = new Uint8Array(
+      //   randomBytes(MidHashTypes.getLengthInBytes(hashType)),
+      // );
     }
   }
 
@@ -64,9 +73,9 @@ export class RandomHash {
     r = r[0] & 0x80 ? Buffer.concat([Buffer.from([0x00]), r]) : r;
     s = s[0] & 0x80 ? Buffer.concat([Buffer.from([0x00]), s]) : s;
 
-    const EcdsaDerSig = asn1.define('EcdsaDerSig', function () {
-      this.seq().obj(this.key('r').int(), this.key('s').int());
-    });
+    function encodeInteger(buf: Uint8Array) {
+      return Buffer.concat([Buffer.from([0x02, buf.length]), buf]);
+    }
 
     const encodedR = encodeInteger(r);
     const encodedS = encodeInteger(s);
@@ -114,9 +123,10 @@ export class RandomHash {
     try {
       console.log('Trying ECDSA verification...');
       const signatureAsn1 = RandomHash.signatureFromCvcEncoding(signature);
-
-      console.log('value langth:', this.value.length);
-      return verify(null, this.value, publicKey, signatureAsn1);
+      const createdVe = crypto.createVerify('sha256');
+      createdVe.update(this.randomValue!); // NOT the hash!
+      createdVe.end();
+      return createdVe.verify(publicKey, signatureAsn1);
     } catch (ecdsaErr) {
       console.error('ECDSA verification failed:', ecdsaErr);
     }
