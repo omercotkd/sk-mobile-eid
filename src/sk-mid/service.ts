@@ -30,7 +30,7 @@ export async function startAuthentication(
     hash: randomHash.hashToBase64(),
     hashType: MidHashTypes.getHashTypeName(randomHash.hashType),
     language: 'ENG',
-    displayText: 'This is display text.',
+    displayText: 'Hopae authentication request',
     displayTextFormat: 'GSM-7',
   };
 

@@ -1,10 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import settings from './lib/settings';
-import { RandomHash } from './lib/randomHash';
-import { MidHashTypes } from './lib/midHashTypes';
-import { startAuthentication, getAuthenticationStatus } from './lib/service';
-import { AuthenticationCertificate } from './lib/authenticationCertificate';
+import settings from './sk-mid/settings';
+import { RandomHash } from './sk-mid/randomHash';
+import { MidHashTypes } from './sk-mid/midHashTypes';
+import { startAuthentication, getAuthenticationStatus } from './sk-mid/service';
+import { AuthenticationCertificate } from './sk-mid/authenticationCertificate';
 
 async function main() {
   // Create a random hash using SHA256
