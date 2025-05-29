@@ -27,7 +27,7 @@ export async function startAuthentication(
     ...baseRequestPayload,
     phoneNumber,
     nationalIdentityNumber,
-    hash: randomHash.toBase64(),
+    hash: randomHash.hashToBase64(),
     hashType: MidHashTypes.getHashTypeName(randomHash.hashType),
     language: 'ENG',
     displayText: 'This is display text.',

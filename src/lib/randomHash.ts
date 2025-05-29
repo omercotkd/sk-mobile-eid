@@ -1,49 +1,46 @@
 import { MidHashTypes } from './midHashTypes';
-import {
-  randomBytes,
-  verify,
-  constants,
-  createVerify,
-  KeyObject,
-} from 'crypto';
+import { constants, KeyObject } from 'crypto';
 import * as crypto from 'crypto';
 
 export class RandomHash {
-  public readonly value: Uint8Array;
-  randomValue?: string;
-  constructor(
-    public readonly hashType: MidHashTypes,
-    value?: Uint8Array | null,
-  ) {
-    if (value) {
-      this.value = value;
+  public readonly hashType: MidHashTypes;
+  public readonly hash: Uint8Array;
+  public readonly message: Uint8Array;
+
+  constructor(hashType: MidHashTypes, message?: Uint8Array | null) {
+    this.hashType = hashType;
+    if (message) {
+      this.message = message;
     } else {
-      // crerate a random value and hash it with sha256, sha384 or sha512
-      const randomValue = crypto
-        .randomBytes(MidHashTypes.getLengthInBytes(hashType))
-        .toString('hex');
-      const hash = crypto.createHash(MidHashTypes.getHashTypeName(hashType));
-      hash.update(randomValue);
-      this.value = new Uint8Array(hash.digest());
-      this.randomValue = randomValue;
-      // this.value = new Uint8Array(
-      //   randomBytes(MidHashTypes.getLengthInBytes(hashType)),
-      // );
+      const randomValue = crypto.randomBytes(
+        // can use any length for the random message if not provided one
+        // using the hash type length as a default
+        MidHashTypes.getLengthInBytes(hashType),
+      );
+      this.message = randomValue;
     }
+    const hash = crypto.createHash(MidHashTypes.getHashTypeName(hashType));
+    hash.update(this.message);
+    this.hash = new Uint8Array(hash.digest());
+  }
+
+  static fromMessageBase64(base64String: string): RandomHash {
+    const [hashTypeName, messageBase64] = base64String.split(':');
+    const hashType = MidHashTypes.fromHashTypeName(hashTypeName);
+    const message = Buffer.from(messageBase64, 'base64');
+    return new RandomHash(hashType, new Uint8Array(message));
   }
 
   toString() {
-    return `RandomHash(${this.hashType}, ${Buffer.from(this.value).toString('hex')})`;
+    return `RandomHash(${this.hashType}, ${Buffer.from(this.hash).toString('hex')}, ${this.message})`;
   }
-
-  static fromBase64(base64String: string): RandomHash {
-    const value = Uint8Array.from(Buffer.from(base64String, 'base64'));
-    const hashType = MidHashTypes.fromBytesLength(value.length);
-    return new RandomHash(hashType, value);
+  hashToBase64(): string {
+    return Buffer.from(this.hash).toString('base64');
   }
-
-  toBase64(): string {
-    return Buffer.from(this.value).toString('base64');
+  messageToBase64(): string {
+    return `${MidHashTypes.getHashTypeName(
+      this.hashType,
+    )}:${Buffer.from(this.message).toString('base64')}`;
   }
   /**
    *
@@ -53,8 +50,8 @@ export class RandomHash {
    *always 4 digits are displayed (e.g. 0041).
    */
   generateVerificationCode(): string {
-    const first6Bits = this.value[0] & 0b00111111; // 6 bits from the beginning
-    const last7Bits = this.value[this.value.length - 1] & 0b01111111; // 7 bits from the end
+    const first6Bits = this.hash[0] & 0b00111111; // 6 bits from the beginning
+    const last7Bits = this.hash[this.hash.length - 1] & 0b01111111; // 7 bits from the end
     const verificationCode = (first6Bits << 7) | last7Bits; // Combine the bits
     return verificationCode.toString().padStart(4, '0'); // Ensure it's 4 digits
   }
@@ -88,49 +85,64 @@ export class RandomHash {
     ]);
   }
 
+  private verifyRsaSignature(
+    publicKey: KeyObject,
+    signature: Uint8Array,
+  ): boolean {
+    console.debug(
+      'Verifying signature with RSA public key, hash type:',
+      this.hashType,
+    );
+    const signedDigestHash = Buffer.concat([
+      MidHashTypes.getDigestInfoPrefix(this.hashType),
+      this.hash,
+    ]);
+
+    const decrypted = crypto.publicDecrypt(
+      {
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_PADDING,
+      },
+      signature,
+    );
+
+    return decrypted.equals(signedDigestHash);
+  }
+
+  private verifyEcdsaSignature(
+    publicKey: KeyObject,
+    signature: Uint8Array,
+  ): boolean {
+    console.debug(
+      'Verifying signature with ECDSA public key, hash type:',
+      this.hashType,
+    );
+    const signatureAsn1 = RandomHash.signatureFromCvcEncoding(signature);
+    const createdVe = crypto.createVerify(
+      MidHashTypes.getAlgorithm(this.hashType),
+    );
+    // due to crypto module limitations, we need to use the original message
+    // instead of the hash, as the verify method expects the original data
+    createdVe.update(this.message!); // NOT the hash!
+    createdVe.end();
+    return createdVe.verify(publicKey, signatureAsn1);
+  }
+
   /**
    * verifySignature verifies the signature using the provided public key.
    * Jave MID implementation:
    * https://github.com/SK-EID/mid-rest-java-client/blob/cf04a090e7cd932633db5bd25b6ce174ab136042/src/main/java/ee/sk/mid/MidSignatureVerifier.java#L66
    */
   verifySignature(publicKey: KeyObject, signature: Uint8Array): boolean {
-    console.log('Starting signature verification...');
-    try {
-      // Combine the digest info prefix with the signature
-      const signedDigest = Buffer.concat([
-        MidHashTypes.getDigestInfoPrefix(this.hashType),
-        signature,
-      ]);
-
-      const isRsaValid = verify(
-        null, // Use null for PKCS1v15 padding
-        this.value,
-        {
-          padding: constants.RSA_PKCS1_PADDING,
-          key: publicKey,
-        },
-        signedDigest,
-      );
-
-      if (isRsaValid) {
-        console.log('Signature verified successfully with RSA');
-        return true;
-      }
-    } catch (err) {
-      console.error('RSA verification failed:', err);
+    switch (publicKey.asymmetricKeyType) {
+      case 'rsa':
+        return this.verifyRsaSignature(publicKey, signature);
+      case 'ec':
+        return this.verifyEcdsaSignature(publicKey, signature);
+      default:
+        throw new Error(
+          `Unsupported public key type: ${publicKey.asymmetricKeyType}`,
+        );
     }
-    // If RSA verification fails, try ECDSA
-    try {
-      console.log('Trying ECDSA verification...');
-      const signatureAsn1 = RandomHash.signatureFromCvcEncoding(signature);
-      const createdVe = crypto.createVerify('sha256');
-      createdVe.update(this.randomValue!); // NOT the hash!
-      createdVe.end();
-      return createdVe.verify(publicKey, signatureAsn1);
-    } catch (ecdsaErr) {
-      console.error('ECDSA verification failed:', ecdsaErr);
-    }
-    // If both RSA and ECDSA verification fail
-    return false;
   }
 }
