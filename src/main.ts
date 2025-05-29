@@ -11,30 +11,42 @@ async function main() {
   const randomHash = new RandomHash(MidHashTypes.SHA256);
 
   // Start the authentication process
-  const sessionId = await startAuthentication(
-    settings.PHONE_NUMBER,
-    settings.ID_NUMBER,
+  const startAuthRes = await startAuthentication({
+    phoneNumber: settings.PHONE_NUMBER,
+    nationalIdentityNumber: settings.ID_NUMBER,
     randomHash,
-  );
+  });
+
+  if (!startAuthRes.ok) {
+    console.error('Error starting authentication:', startAuthRes.error);
+    return;
+  }
 
   // Generate and display the verification code
   const verificationCode = randomHash.generateVerificationCode();
   console.log(`Verification code: ${verificationCode}`);
 
   // Display the session ID
-  console.log(`Session ID: ${sessionId}`);
+  console.log(`Session ID: ${startAuthRes.value.sessionID}`);
 
   // Get the authentication status
-  const status = await getAuthenticationStatus(sessionId);
+  const statusRes = await getAuthenticationStatus({
+    sessionId: startAuthRes.value.sessionID,
+  });
+
+  if (!statusRes.ok) {
+    console.error('Error getting authentication status:', statusRes.error);
+    return;
+  }
 
   // Decode the signature
-  const signature: string = status.signature.value;
+  const signature: string = statusRes.value.signature.value;
 
   const signatureDecoded = Buffer.from(signature, 'base64');
 
   // Load the certificate for verification
 
-  const certToVerify = new AuthenticationCertificate(status.cert);
+  const certToVerify = new AuthenticationCertificate(statusRes.value.cert);
 
   // Verify the certificate
   const res = certToVerify.verifyCertificate();
