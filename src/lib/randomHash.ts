@@ -1,5 +1,5 @@
 import { MidHashTypes } from './midHashTypes';
-import { constants, KeyObject } from 'crypto';
+import { KeyObject } from 'crypto';
 import * as crypto from 'crypto';
 
 export class RandomHash {

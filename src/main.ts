@@ -1,13 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import settings from './lib/settings';
-import {
-  RandomHash,
-  // AuthenticationCertificate,
-} from './lib/randomHash';
+import { RandomHash } from './lib/randomHash';
 import { MidHashTypes } from './lib/midHashTypes';
 import { startAuthentication, getAuthenticationStatus } from './lib/service';
-import { X509Certificate } from 'crypto';
+import { AuthenticationCertificate } from './lib/authenticationCertificate';
 
 async function main() {
   // Create a random hash using SHA256
@@ -32,23 +29,23 @@ async function main() {
 
   // Decode the signature
   const signature: string = status.signature.value;
-  console.log(`Signature: ${signature}`);
+
   const signatureDecoded = Buffer.from(signature, 'base64');
 
   // Load the certificate for verification
-  const certificate = new X509Certificate(Buffer.from(status.cert, 'base64'));
-  console.log(`Certificate: ${certificate.subject}`);
-  // const certToVerify = new AuthenticationCertificate(status.cert);
+
+  const certToVerify = new AuthenticationCertificate(status.cert);
 
   // Verify the certificate
-  // certToVerify.verifyCertificate();
+  const res = certToVerify.verifyCertificate();
+  console.log(`Certificate verification result: ${res}`);
   // const publicKey = certificate.publicKey.export({
   //   type: 'spki',
   //   format: 'pem',
   // });
   // // Verify the signature
   const isSignatureValid = randomHash.verifySignature(
-    certificate.publicKey,
+    certToVerify.getPublicKey(),
     signatureDecoded,
   );
 

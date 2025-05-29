@@ -3,7 +3,7 @@ import { HashType } from './hashType';
 /**
  * This Enum is inspired by the java implementation of the MID client
  * https://github.com/SK-EID/mid-rest-java-client/blob/cf04a090e7cd932633db5bd25b6ce174ab136042/src/main/java/ee/sk/mid/MidHashType.java
- *
+ * 
  * due to enum limitations in TypeScript (only string or numeric values are allowed),
  * we use a namespace with functions and a constant object
  * to represent the enum values and have similar functionality,
