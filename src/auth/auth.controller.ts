@@ -5,7 +5,7 @@ import {
   BadRequestException,
   Get,
 } from '@nestjs/common';
-import { StartAuthDto } from './start-auth.dto';
+import { StartAuthDto, GetAuthStatusDto } from './auth.dto';
 import {
   startAuthentication,
   RandomHash,
@@ -13,6 +13,7 @@ import {
   getAuthenticationStatus,
   AuthenticationCertificate,
 } from '../services/sk-mid';
+import { signIdToken } from './idtoken';
 
 @Controller('auth')
 export class AuthController {
@@ -39,19 +40,20 @@ export class AuthController {
     if (result.ok) {
       return {
         code: randomHash.generateVerificationCode(),
+        // In a real application, you would not return the session ID directly
+        // but rather store it in a session or database
         sessionId: result.value.sessionID,
-        randomHash: randomHash.messageToBase64(),
+        // Same here, do not return the hash directly in production
+        // This is just for demonstration purposes
+        randomMessage: randomHash.messageToBase64(),
       };
     } else {
       throw new BadRequestException(result.error.erroType);
     }
   }
 
-  @Get('status')
-  async getAuthStatus(@Body() body: { sessionId: string }) {
-    if (!body || !body.sessionId) {
-      throw new BadRequestException('Missing required field: sessionId');
-    }
+  @Post('status')
+  async getAuthStatus(@Body() body: GetAuthStatusDto) {
     const result = await getAuthenticationStatus({
       sessionId: body.sessionId,
       timeoutMs: 120000,
@@ -85,7 +87,7 @@ export class AuthController {
       );
     }
     // Verify the signature against the hash we generated earlier
-    const randomHash = RandomHash.fromMessageBase64('');
+    const randomHash = RandomHash.fromMessageBase64(body.randomMessage);
 
     if (
       !randomHash.verifySignature({
@@ -96,9 +98,12 @@ export class AuthController {
       throw new BadRequestException('Signature verification failed');
     }
 
+    const userInfo = certToVerify.getSignedUserData();
+
     return {
       status: 'success',
-      // shuld send here any tokenId, as the user is authenticated against the sk-mid service
+      userInfo: userInfo,
+      idToken: signIdToken(userInfo),
     };
   }
 }

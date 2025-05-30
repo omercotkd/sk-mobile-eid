@@ -66,4 +66,26 @@ export class AuthenticationCertificate {
   getPublicKey(): KeyObject {
     return this.certificate.publicKey;
   }
+
+  /**
+   * Extracts signed user data from the certificate's subject fields.
+   *
+   * https://github.com/SK-EID/MID/wiki/Test-number-for-automated-testing-in-DEMO#personal-data-structure-overview-that-is-located-on-the-certificates-subject-field
+   */
+  getSignedUserData(): Record<string, string> {
+    const subject = this.certificate.subject;
+    // The DOB is not on the certificate,
+    // But you can calculate it from the personal ID of the user:
+    // https://github.com/dknight/Isikukood-js/blob/master/src/isikukood.ts
+
+    const userData: Record<string, string> = {};
+    subject.split('\n').forEach((line) => {
+      const [key, value] = line.split('=');
+      if (key && value) {
+        userData[key.trim()] = value.trim();
+      }
+    });
+
+    return userData;
+  }
 }

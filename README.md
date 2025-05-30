@@ -105,3 +105,18 @@ async function main() {
 - These test credentials are only valid in the DEMO environment and will not work in production.
 
 ---
+
+## How to Run
+
+```bash
+# Install dependencies
+npm install
+```
+```bash
+# Run the server
+npm start
+```
+
+Visit `http://localhost:3000` to start the authentication flow.
+
+you can use one of the test numbers linked above.

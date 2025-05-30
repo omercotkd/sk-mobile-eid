@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SK MID Authentication Demo</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    .container { max-width: 400px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 2rem; }
+    h2 { text-align: center; }
+    label { display: block; margin-top: 1rem; }
+    input { width: 100%; padding: 0.5rem; margin-top: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
+    button { margin-top: 1.5rem; width: 100%; padding: 0.75rem; background: #0052cc; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+    button:disabled { background: #ccc; }
+    .result, .error { margin-top: 1.5rem; padding: 1rem; border-radius: 4px; }
+    .result { background: #e6ffed; color: #1a7f37; }
+    .error { background: #ffe6e6; color: #d32f2f; }
+    .code { font-size: 1.5rem; text-align: center; margin: 1rem 0; }
+    textarea { width: 100%; min-height: 80px; font-size: 0.9em; padding: 0.5rem; margin-top: 0.25rem; border: 1px solid #ccc; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>SK MID Authentication</h2>
+    <form id="authForm">
+      <label for="idNumber">National Identity Number</label>
+      <input type="text" id="idNumber" name="idNumber" maxlength="11" required />
+      <label for="phoneNumber">Phone Number (+372 or +370)</label>
+      <input type="text" id="phoneNumber" name="phoneNumber" required />
+      <button type="submit">Start Authentication</button>
+    </form>
+    <div id="verification" style="display:none;">
+      <div class="code">Verification code: <span id="code"></span></div>
+      <button id="checkStatusBtn">Check Authentication Status</button>
+    </div>
+    <div id="result" class="result" style="display:none;"></div>
+    <div id="error" class="error" style="display:none;"></div>
+  </div>
+  <script>
+    const form = document.getElementById('authForm');
+    const verification = document.getElementById('verification');
+    const codeSpan = document.getElementById('code');
+    const checkStatusBtn = document.getElementById('checkStatusBtn');
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+    let sessionId = '';
+    let randomMessage = '';
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      errorDiv.style.display = 'none';
+      resultDiv.style.display = 'none';
+      verification.style.display = 'none';
+      codeSpan.textContent = '';
+      sessionId = '';
+      randomMessage = '';
+      const idNumber = document.getElementById('idNumber').value.trim();
+      const phoneNumber = document.getElementById('phoneNumber').value.trim();
+      try {
+        const res = await fetch('/auth/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nationalIdentityNumber: idNumber, phoneNumber })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        codeSpan.textContent = data.code;
+        sessionId = data.sessionId;
+        randomMessage = data.randomMessage;
+        verification.style.display = 'block';
+      } catch (err) {
+        errorDiv.textContent = err.message || 'Failed to start authentication.';
+        errorDiv.style.display = 'block';
+      }
+    };
+
+    checkStatusBtn.onclick = async () => {
+      errorDiv.style.display = 'none';
+      resultDiv.style.display = 'none';
+      try {
+        const res = await fetch('/auth/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, randomMessage })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        if (data.status === 'success') {
+          let html = '<b>Authentication successful! User verified.</b><br><br>';
+          if (data.userInfo && typeof data.userInfo === 'object') {
+            html += '<table style="width:100%;border-collapse:collapse;">';
+            for (const key in data.userInfo) {
+              if (Object.prototype.hasOwnProperty.call(data.userInfo, key)) {
+                html += `<tr><td style='font-weight:bold;padding:2px 8px;border-bottom:1px solid #eee;'>${key}</td><td style='padding:2px 8px;border-bottom:1px solid #eee;'>${data.userInfo[key]}</td></tr>`;
+              }
+            }
+            html += '</table>';
+          } else {
+            html += '<pre>' + (data.userInfo || '-') + '</pre>';
+          }
+          if (data.idToken) {
+            html += '<br><b>ID Token (JWT):</b><br>';
+            html += `<textarea readonly style="width:100%;min-height:80px;font-size:0.9em;">${data.idToken}</textarea>`;
+          }
+          resultDiv.innerHTML = html;
+          resultDiv.style.display = 'block';
+        } else if (data.status === 'running') {
+          resultDiv.textContent = 'Authentication is still in progress. Please try again in a few seconds.';
+          resultDiv.style.display = 'block';
+        } else {
+          errorDiv.textContent = data.error || 'Authentication failed.';
+          errorDiv.style.display = 'block';
+        }
+      } catch (err) {
+        errorDiv.textContent = err.message || 'Failed to check authentication status.';
+        errorDiv.style.display = 'block';
+      }
+    };
+  </script>
+</body>
+</html>
