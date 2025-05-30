@@ -1,98 +1,107 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# SK MID Authentication Flow
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+This project demonstrates the authentication flow using the Estonian Mobile-ID (SK MID) system.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Flow Overview
 
-## Description
+1. **User Initiates Authentication**: The user provides their ID number and phone number to start the authentication process.
+2. **API Sends Authentication Request**: The API sends these credentials to the MID-SK API, along with a random message. This message is used to verify the user's signature and to generate a verification code displayed on the user's phone.
+3. **User Authenticates on Phone**: The user receives a prompt on their phone (via the MID-SK app) and completes the authentication process.
+4. **Polling for Status**: The client polls the API for the authentication status while the user is authenticating.
+5. **API Receives Authentication Result**: Once the user completes authentication, the MID-SK API returns the result to the server.
+6. **Verification**: The server verifies the response, ensuring the signature is valid and the response is authentic.
+7. **Authentication Success**: If all checks pass, the user is considered authenticated.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Example Code (Logic Only)
 
-```bash
-$ npm install
+Below is a simplified example of the authentication flow, focusing on the core logic (without API endpoints):
+
+```ts
+import {
+  startAuthentication,
+  getAuthenticationStatus,
+  RandomHash,
+  MidHashTypes,
+  AuthenticationCertificate,
+} from './services/sk-mid';
+
+async function main() {
+  // Generate a random hash (SHA256)
+  const randomHash = new RandomHash(MidHashTypes.SHA256);
+
+  // Start authentication
+  const startAuthRes = await startAuthentication({
+    phoneNumber: '+37269930366',
+    nationalIdentityNumber: '+37069930366',
+    randomHash,
+  });
+
+  if (!startAuthRes.ok) {
+    console.error('Failed to start authentication');
+    return;
+  }
+
+  // Display verification code to user
+  console.log(`Verification code: ${randomHash.generateVerificationCode()}`);
+
+  // Simulate waiting for user to authenticate on their phone
+  await new Promise((resolve) => setTimeout(resolve, 10000));
+
+  // Poll for authentication status
+  const statusRes = await getAuthenticationStatus({
+    sessionId: startAuthRes.value.sessionID,
+  });
+
+  if (!statusRes.ok) {
+    console.error('Failed to get authentication status');
+    return;
+  }
+
+  if (!statusRes.value.isSuccess()) {
+    console.error('Authentication was not successful');
+    return;
+  }
+
+  // Verify the authentication certificate
+  const certToVerify = new AuthenticationCertificate(statusRes.value.cert!);
+  if (!certToVerify.isValid()) {
+    console.error('Certificate is not valid');
+    return;
+  }
+
+  // Verify the signature
+  const signatureDecoded = Buffer.from(statusRes.value.signature?.value!, 'base64');
+  const isSignatureValid = randomHash.verifySignature({
+    publicKey: certToVerify.getPublicKey(),
+    signature: signatureDecoded,
+  });
+
+  if (!isSignatureValid) {
+    console.error('Signature is not valid');
+    return;
+  }
+
+  console.log('Authentication successful! User verified.');
+}
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## Notes
+- This example omits error handling and production-level security for brevity.
+- The phone number and national identity number are from the test environment and should not be used in production.
+- The actual implementation should use secure storage and proper error reporting.
 
-# watch mode
-$ npm run start:dev
+---
 
-# production mode
-$ npm run start:prod
-```
+## Deploying to Production
+- Obtain production certificates and the API URL from the official documentation: [SK-EID Environment Technical Parameters](https://github.com/SK-EID/MID/wiki/Environment-technical-parameters)
 
-## Run tests
 
-```bash
-# unit tests
-$ npm run test
+## Test Data
+- You can find phone numbers and national identity numbers for testing in the official documentation: [Test Numbers for Automated Testing in DEMO](https://github.com/SK-EID/MID/wiki/Test-number-for-automated-testing-in-DEMO#personal-data-structure-overview-that-is-located-on-the-certificates-subject-field)
+- These test credentials are only valid in the DEMO environment and will not work in production.
 
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+---

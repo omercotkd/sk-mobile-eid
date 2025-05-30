@@ -12,6 +12,7 @@ export class AuthenticationCertificate {
    * Represents an authentication certificate.
    * @param cert - The base64 encoded certificate string.
    * @param verifiedCertificatesFolder - Optional folder path containing verified certificates.
+   * @throws {Error} If the certificate is invalid or cannot be parsed.
    */
   constructor(cert: string, verifiedCertificatesFolder: string | null = null) {
     this.certificate = new X509Certificate(Buffer.from(cert, 'base64'));
@@ -50,7 +51,7 @@ export class AuthenticationCertificate {
     return certificates;
   }
 
-  verifyCertificate(): boolean {
+  isValid(): boolean {
     for (const cert of this.loadVerifiedCertificates()) {
       if (this.certificate.verify(cert.publicKey)) {
         console.debug(

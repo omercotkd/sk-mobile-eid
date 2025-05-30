@@ -1,10 +1,13 @@
 import {
-  StartAuthenticationErrors,
-  GetAuthenticationStatusErrors,
+  StartAuthenticationErrorCodes,
+  GetAuthenticationStatusErrorCodes,
+  SignatureAlgorithm,
+  AuthenticationResultCodes,
+  AuthenticationStates,
 } from './types';
 import { AxiosError } from 'axios';
 
-export class StartAuthenticationResponse {
+export class StartAuthenticationSuccess {
   public readonly sessionID: string;
   constructor({ sessionID }: { sessionID: string }) {
     this.sessionID = sessionID;
@@ -18,7 +21,7 @@ export class StartAuthenticationError {
    * Error message returned by the TSP service.
    */
   public readonly error: string;
-  public readonly erroType: StartAuthenticationErrors;
+  public readonly erroType: StartAuthenticationErrorCodes;
 
   public axiosError: AxiosError<any>;
 
@@ -32,7 +35,7 @@ export class StartAuthenticationError {
     error: string;
     time: string;
     traceId: string;
-    errorType: StartAuthenticationErrors;
+    errorType: StartAuthenticationErrorCodes;
     axiosError: AxiosError<any>;
   }) {
     this.error = error;
@@ -58,13 +61,13 @@ export class StartAuthenticationError {
           if (error.includes('Base64')) {
             return new StartAuthenticationError({
               ...response.data,
-              errorType: StartAuthenticationErrors.HashNotBase64,
+              errorType: StartAuthenticationErrorCodes.HashNotBase64,
               axiosError,
             });
           } else if (error.includes('length')) {
             return new StartAuthenticationError({
               ...response.data,
-              errorType: StartAuthenticationErrors.MismatchedHashLength,
+              errorType: StartAuthenticationErrorCodes.MismatchedHashLength,
               axiosError,
             });
             // The missing required param error message is always different for each field
@@ -72,26 +75,26 @@ export class StartAuthenticationError {
           } else {
             return new StartAuthenticationError({
               ...response.data,
-              errorType: StartAuthenticationErrors.MissingRequiredParam,
+              errorType: StartAuthenticationErrorCodes.MissingRequiredParam,
               axiosError,
             });
           }
         case 401:
           return new StartAuthenticationError({
             ...response.data,
-            errorType: StartAuthenticationErrors.FaildToAuthorizeUser,
+            errorType: StartAuthenticationErrorCodes.FaildToAuthorizeUser,
             axiosError,
           });
         case 405:
           return new StartAuthenticationError({
             ...response.data,
-            errorType: StartAuthenticationErrors.MethodNotAllowed,
+            errorType: StartAuthenticationErrorCodes.MethodNotAllowed,
             axiosError,
           });
         case 500:
           return new StartAuthenticationError({
             ...response.data,
-            errorType: StartAuthenticationErrors.InternalServerError,
+            errorType: StartAuthenticationErrorCodes.InternalServerError,
             axiosError,
           });
         default:
@@ -99,7 +102,7 @@ export class StartAuthenticationError {
             error: 'Unknown error',
             time: new Date().toISOString(),
             traceId: 'unknown',
-            errorType: StartAuthenticationErrors.UnknownError,
+            errorType: StartAuthenticationErrorCodes.UnknownError,
             axiosError,
           });
       }
@@ -108,14 +111,62 @@ export class StartAuthenticationError {
       error: 'Unknown error',
       time: new Date().toISOString(),
       traceId: 'unknown',
-      errorType: StartAuthenticationErrors.UnknownError,
+      errorType: StartAuthenticationErrorCodes.UnknownError,
       axiosError,
     });
   }
 }
 
-export class GetAuthenticationStatusResponse {}
+/**
+ * https://github.com/SK-EID/MID?tab=readme-ov-file#335-response-structure
+ */
+export class GetAuthenticationStatusSuccess {
+  public readonly state: AuthenticationStates;
+  public readonly time: Date;
+  public readonly traceId: string;
+  public readonly result?: AuthenticationResultCodes;
+  public readonly signature?: {
+    value: string;
+    algorithm: SignatureAlgorithm;
+  };
+  public readonly cert?: string;
 
+  constructor(data: any) {
+    this.state = data.state;
+    this.time = new Date(data.time);
+    this.traceId = data.traceId;
+    this.result = data.result;
+    this.signature = data.signature;
+    this.cert = data.cert;
+  }
+
+  /**
+   * Helper to check if the authentication is still running.
+   */
+  isRunning(): boolean {
+    return this.state === AuthenticationStates.RUNNING;
+  }
+
+  /**
+   * Helper to check if the authentication is complete and successful.
+   */
+  isSuccess(): boolean {
+    return (
+      this.state === AuthenticationStates.COMPLETED &&
+      this.result === AuthenticationResultCodes.OK
+    );
+  }
+
+  /**
+   * Helper to check if the authentication is complete but failed/cancelled.
+   */
+  isFailure(): boolean {
+    return (
+      this.state === AuthenticationStates.COMPLETED &&
+      this.result !== AuthenticationResultCodes.OK
+    );
+  }
+}
 
 export class GetAuthenticationStatusError {
   public readonly time: Date;
@@ -124,7 +175,7 @@ export class GetAuthenticationStatusError {
    * Error message returned by the TSP service.
    */
   public readonly error: string;
-  public readonly erroType: GetAuthenticationStatusErrors;
+  public readonly erroType: GetAuthenticationStatusErrorCodes;
 
   public axiosError: AxiosError<any>;
 
@@ -138,7 +189,7 @@ export class GetAuthenticationStatusError {
     error: string;
     time: string;
     traceId: string;
-    errorType: GetAuthenticationStatusErrors;
+    errorType: GetAuthenticationStatusErrorCodes;
     axiosError: AxiosError<any>;
   }) {
     this.error = error;
@@ -162,31 +213,32 @@ export class GetAuthenticationStatusError {
         case 400:
           return new GetAuthenticationStatusError({
             ...response.data,
-            errorType: GetAuthenticationStatusErrors.RequiredSessionIdMissing,
+            errorType:
+              GetAuthenticationStatusErrorCodes.RequiredSessionIdMissing,
             axiosError,
           });
         case 401:
           return new GetAuthenticationStatusError({
             ...response.data,
-            errorType: GetAuthenticationStatusErrors.FailedToAuthorizeUser,
+            errorType: GetAuthenticationStatusErrorCodes.FailedToAuthorizeUser,
             axiosError,
           });
         case 404:
           return new GetAuthenticationStatusError({
             ...response.data,
-            errorType: GetAuthenticationStatusErrors.SessionIdNotFound,
+            errorType: GetAuthenticationStatusErrorCodes.SessionIdNotFound,
             axiosError,
           });
         case 405:
           return new GetAuthenticationStatusError({
             ...response.data,
-            errorType: GetAuthenticationStatusErrors.MethodNotAllowed,
+            errorType: GetAuthenticationStatusErrorCodes.MethodNotAllowed,
             axiosError,
           });
         case 500:
           return new GetAuthenticationStatusError({
             ...response.data,
-            errorType: GetAuthenticationStatusErrors.InternalServerError,
+            errorType: GetAuthenticationStatusErrorCodes.InternalServerError,
             axiosError,
           });
         default:
@@ -194,7 +246,7 @@ export class GetAuthenticationStatusError {
             error: 'Unknown error',
             time: new Date().toISOString(),
             traceId: 'unknown',
-            errorType: GetAuthenticationStatusErrors.UnknownError,
+            errorType: GetAuthenticationStatusErrorCodes.UnknownError,
             axiosError,
           });
       }
@@ -203,7 +255,7 @@ export class GetAuthenticationStatusError {
       error: 'Unknown error',
       time: new Date().toISOString(),
       traceId: 'unknown',
-      errorType: GetAuthenticationStatusErrors.UnknownError,
+      errorType: GetAuthenticationStatusErrorCodes.UnknownError,
       axiosError,
     });
   }

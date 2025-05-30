@@ -1,12 +1,14 @@
 import axios from 'axios';
-import { RandomHash } from '../randomHash';
-import settings from '../settings';
-import { MidHashTypes } from '../midHashTypes';
+import { RandomHash } from './randomHash';
+import settings from './settings';
+import { MidHashTypes } from './midHashTypes';
 import { Result } from './types';
+import { AuthenticationCertificate } from './authenticationCertificate';
 import {
-  StartAuthenticationResponse,
-  StartAuthenticationError,
+  StartAuthenticationSuccess,
   GetAuthenticationStatusError,
+  StartAuthenticationError,
+  GetAuthenticationStatusSuccess,
 } from './responses';
 
 // Create a new Axios instance
@@ -32,7 +34,7 @@ export async function startAuthentication({
   phoneNumber: string;
   nationalIdentityNumber: string;
   randomHash: RandomHash;
-}): Promise<Result<StartAuthenticationResponse, StartAuthenticationError>> {
+}): Promise<Result<StartAuthenticationSuccess, StartAuthenticationError>> {
   const payload = {
     ...baseRequestPayload,
     phoneNumber,
@@ -45,8 +47,9 @@ export async function startAuthentication({
   };
 
   try {
+    console.debug('Sending authentication request with payload:', payload);
     const response = await apiClient.post('/authentication', payload);
-    return { ok: true, value: new StartAuthenticationResponse(response.data) };
+    return { ok: true, value: new StartAuthenticationSuccess(response.data) };
   } catch (error) {
     return { ok: false, error: StartAuthenticationError.fromAxiosError(error) };
   }
@@ -58,7 +61,9 @@ export async function getAuthenticationStatus({
 }: {
   sessionId: string;
   timeoutMs?: number;
-}): Promise<Result<Record<string, any>, GetAuthenticationStatusError>> {
+}): Promise<
+  Result<GetAuthenticationStatusSuccess, GetAuthenticationStatusError>
+> {
   /**
    * Checks the status of the authentication process.
    * Returns the status and any additional information.
@@ -70,7 +75,10 @@ export async function getAuthenticationStatus({
         params: { timeoutMs },
       },
     );
-    return { ok: true, value: response.data };
+    return {
+      ok: true,
+      value: new GetAuthenticationStatusSuccess(response.data),
+    };
   } catch (error) {
     return {
       ok: false,
@@ -78,3 +86,5 @@ export async function getAuthenticationStatus({
     };
   }
 }
+
+export { RandomHash, MidHashTypes, AuthenticationCertificate };

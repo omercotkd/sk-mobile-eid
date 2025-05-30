@@ -133,7 +133,13 @@ export class RandomHash {
    * Jave MID implementation:
    * https://github.com/SK-EID/mid-rest-java-client/blob/cf04a090e7cd932633db5bd25b6ce174ab136042/src/main/java/ee/sk/mid/MidSignatureVerifier.java#L66
    */
-  verifySignature(publicKey: KeyObject, signature: Uint8Array): boolean {
+  verifySignature({
+    publicKey,
+    signature,
+  }: {
+    publicKey: KeyObject;
+    signature: Uint8Array;
+  }): boolean {
     switch (publicKey.asymmetricKeyType) {
       case 'rsa':
         return this.verifyRsaSignature(publicKey, signature);
